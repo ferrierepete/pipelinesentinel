@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 15, 23, 42;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+}
+
+/* Severity colors */
+.severity-critical { @apply text-red-400 bg-red-400/10 border-red-400/30; }
+.severity-high { @apply text-orange-400 bg-orange-400/10 border-orange-400/30; }
+.severity-medium { @apply text-yellow-400 bg-yellow-400/10 border-yellow-400/30; }
+.severity-low { @apply text-green-400 bg-green-400/10 border-green-400/30; }
+.severity-info { @apply text-gray-400 bg-gray-400/10 border-gray-400/30; }
+
+/* Risk score gauge */
+.risk-gauge {
+  background: conic-gradient(
+    from 180deg,
+    #22c55e 0%,
+    #eab308 33%,
+    #f97316 66%,
+    #ef4444 100%
+  );
+}
