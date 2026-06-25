@@ -14,3 +14,4 @@ htmlcov/
 .coverage
 node_modules/
 .next/
+web/out/

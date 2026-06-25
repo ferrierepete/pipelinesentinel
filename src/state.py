@@ -27,3 +27,4 @@ class PipelineSentinelState(TypedDict):
 
     # Output
     briefing: str
+    human_decision: dict

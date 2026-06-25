@@ -29,9 +29,8 @@ def human_review(state: dict) -> dict:
             "action_required": "Review each finding. Respond with 'approve', 'accept_risk', or 'needs_context'.",
         })
 
-        # Human response is captured in review_result
-        # For now, findings pass through unchanged
+        # Return human decision as state update (never mutate state directly)
         if isinstance(review_result, dict):
-            state["human_decision"] = review_result
+            return {"human_decision": review_result}
 
     return {}

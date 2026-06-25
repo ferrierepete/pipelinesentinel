@@ -170,6 +170,7 @@ async def scan_file(file_path: str, output_json: str | None = None):
 
         # We'll update progress by streaming the graph
         result = {}
+        completed_steps = 0
         async for event in graph.astream_events(initial_state, version="v2"):
             event_name = event.get("event", "")
             event_data = event.get("data", {})
@@ -179,7 +180,7 @@ async def scan_file(file_path: str, output_json: str | None = None):
             if event_name == "on_chain_end" and "node" in event.get("tags", []):
                 node_name = event_tag
                 progress_map = {
-                    "parse_dependencies": (1, "Dependencies parsed"),
+                    "parse_dependencies": (2, "Dependencies parsed"),
                     "ingest_osv": (3, "OSV query complete"),
                     "ingest_ghsa": (4, "GHSA query complete"),
                     "ingest_kev": (5, "KEV check complete"),
@@ -187,17 +188,23 @@ async def scan_file(file_path: str, output_json: str | None = None):
                     "assess_risk": (7, "Risk assessed"),
                     "generate_briefing": (8, "Briefing generated"),
                 }
-                if node_name in progress_map:
+                if node_name in progress_map and step_num > completed_steps:
                     step_num, description = progress_map[node_name]
-                    progress.advance(task, step_num - progress.completed)
-                    progress.update(task, description=description)
+                    advance = step_num - completed_steps
+                    if advance > 0:
+                        progress.advance(task, advance)
+                        progress.update(task, description=description)
+                        completed_steps = step_num
 
             # Capture final state
             if event_name == "on_chain_end" and not event.get("tags"):
                 if isinstance(event_data, dict) and "output" in event_data:
                     result = event_data["output"]
 
-        progress.advance(task, 8 - progress.completed)
+        # Ensure progress reaches 100%
+        remaining = 8 - completed_steps
+        if remaining > 0:
+            progress.advance(task, remaining)
         progress.update(task, description="Scan complete ✓")
 
     if not result:

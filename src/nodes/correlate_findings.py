@@ -138,25 +138,69 @@ def correlate_findings(state: dict) -> dict:
 
 
 def _extract_cvss_from_severity(severity: dict) -> float:
-    """Extract highest CVSS from OSV severity dict."""
+    """Extract highest CVSS score from OSV severity dict.
+
+    Handles both the old format (raw string scores) and the new format
+    with parsed cvss_score, cvss_vector fields from osv_query.
+    """
+    # New format: dict with cvss_score key
+    if isinstance(severity, dict) and "cvss_score" in severity:
+        return float(severity["cvss_score"])
+
+    # Old format: dict with string keys as CVSS vectors
     max_score = 0.0
-    for score_str in severity:
-        try:
-            # OSV severity values are like "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-            parts = score_str.split("/")
-            for part in parts:
-                if part.startswith("CVSS"):
-                    # Try to parse the base score from CVSS vector
-                    # We'll need to calculate it or use a simpler approach
+    if isinstance(severity, dict):
+        for score_str in severity:
+            if score_str.startswith("CVSS:"):
+                parsed = _parse_cvss_vector_inline(score_str)
+                if parsed > max_score:
+                    max_score = parsed
+            else:
+                try:
+                    score = float(score_str)
+                    if score > max_score:
+                        max_score = score
+                except (ValueError, TypeError):
                     continue
-            # If it's just a number
-            if score_str.replace(".", "").isdigit():
-                score = float(score_str)
-                if score > max_score:
-                    max_score = score
-        except (ValueError, IndexError):
-            continue
     return max_score
+
+
+def _parse_cvss_vector_inline(vector: str) -> float:
+    """Inline CVSS vector parser for correlate_findings node."""
+    try:
+        parts = vector.split("/")
+        metrics = {}
+        for part in parts[1:]:
+            if ":" in part:
+                key, val = part.split(":", 1)
+                metrics[key] = val
+
+        av_scores = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.20}
+        ac_scores = {"L": 0.77, "H": 0.44}
+        pr_low = {"N": 0.85, "L": 0.62, "H": 0.27}
+        pr_high = {"N": 0.85, "L": 0.68, "H": 0.50}
+        ui_scores = {"N": 0.85, "R": 0.62}
+        cia_scores = {"H": 0.56, "L": 0.22, "N": 0.0}
+
+        av = av_scores.get(metrics.get("AV", "N"), 0.85)
+        ac = ac_scores.get(metrics.get("AC", "L"), 0.77)
+        scope_changed = metrics.get("S", "U") == "C"
+        pr_table = pr_high if scope_changed else pr_low
+        pr = pr_table.get(metrics.get("PR", "N"), 0.85)
+        ui = ui_scores.get(metrics.get("UI", "N"), 0.85)
+        c = cia_scores.get(metrics.get("C", "N"), 0.0)
+        i = cia_scores.get(metrics.get("I", "N"), 0.0)
+        a = cia_scores.get(metrics.get("A", "N"), 0.0)
+
+        isc_base = 1 - ((1 - c) * (1 - i) * (1 - a))
+        exploitability = 8.22 * av * ac * pr * ui
+        impact = 7.52 * (isc_base - 0.029) - 3.25 * (isc_base - 0.02)**15
+
+        if impact <= 0:
+            return 0.0
+        return round(min(impact + exploitability, 10.0), 1)
+    except Exception:
+        return 0.0
 
 
 def _severity_label(cvss: float) -> str:

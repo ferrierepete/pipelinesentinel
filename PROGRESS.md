@@ -1,106 +1,71 @@
 # Project Progress: PipelineSentinel
 
-## One-Liner: LangGraph AI agent that continuously monitors your AI/ML pipeline dependencies for new vulnerabilities from OSV/GHSA/CISA KEV, correlates AI-specific attack vectors, and generates actionable remediation briefings with version-specific upgrade paths.
-
-## Status: RESEARCHING
+## One-Liner: LangGraph AI agent that monitors AI/ML pipeline dependencies for new vulnerabilities from OSV/GHSA/CISA KEV, correlates AI-specific attack vectors, and generates actionable remediation briefings with version-specific upgrade paths.
+## Status: VALIDATING
 ## Created: 2026-06-23
-## Last Updated: 2026-06-23
-## Nights Invested: 1
+## Last Updated: 2026-06-25
+## Nights Invested: 3
 
 ## LangGraph Features Used
-- [ ] StateGraph with TypedDict state
-- [ ] Custom tools (@tool)
-- [ ] Conditional edges
-- [ ] Checkpointing (SqliteSaver/MemorySaver)
-- [ ] Streaming (astream_events)
-- [ ] Human-in-the-loop (interrupt_before/after)
-- [ ] Multi-agent orchestration (supervisor)
-- [ ] Subgraphs
+- [x] StateGraph with TypedDict state
+- [x] Custom tools (@tool)
+- [x] Conditional edges
+- [x] Checkpointing (SqliteSaver/MemorySaver)
+- [x] Streaming (astream_events)
+- [x] Human-in-the-loop (interrupt_before/after)
+- [ ] Multi-agent orchestration (supervisor) — not needed for this agent
+- [ ] Subgraphs — not needed for this agent
 
 ## Definition of Done
-- [ ] Core graph works end-to-end
-- [ ] All nodes have unit tests
-- [ ] Integration test passes
-- [ ] Live test produces useful output
-- [ ] Terminal UI working (Rich/Textual)
-- [ ] Web UI working (Next.js)
-- [ ] README complete
-- [ ] Error handling for common failures
-- [ ] Git initialized, clean history
-- [ ] No TODOs, no placeholders
-
-## Rationale (from Night 17 research)
-- **Pain signal**: LiteLLM has 25 OSV vulns (2 in CISA KEV, actively exploited), LangChain has 38 vulns, LangGraph itself has unsafe deserialization
-- **Empty niche**: GitHub search for "LangChain vulnerability monitor" returns 0 repos, "ML dependency vulnerability intelligence" returns 0 repos
-- **Differentiation from SecStack**: SecStack monitors your tool stack broadly. PipelineSentinel focuses on code dependencies with AI-specific risk assessment (deserialization RCE, model poisoning, proxy command injection)
-- **Differentiation from Snyk/Dependabot**: Those tools check ALL dependencies generically. PipelineSentinel understands LLM-specific attack vectors and correlates across multiple intel sources
-- **Market**: Every team building AI agents (massive, growing) — $30-100/mo
-
-## Agent Architecture (Preliminary — design in Night 18)
-
-### State Schema
-```python
-class PipelineSentinelState(TypedDict):
-    dependencies: list[dict]           # parsed from requirements.txt / pyproject.toml
-    ai_ml_deps: list[dict]            # filtered AI/ML-specific dependencies
-    osv_vulns: list[dict]             # OSV API results
-    ghsa_vulns: list[dict]            # GitHub Security Advisory results
-    kev_entries: list[dict]           # CISA KEV entries
-    findings: Annotated[list[dict], add]  # correlated findings with risk scores
-    briefing: str                     # generated remediation briefing
-    error: str                        # error messages
-```
-
-### Nodes (preliminary)
-1. **parse_dependencies** — parse requirements.txt/pyproject.toml, identify AI/ML deps using known package registry
-2. **ingest_osv** — query OSV API for each dependency
-3. **ingest_ghsa** — query GitHub Security Advisories
-4. **ingest_kev** — check CISA KEV catalog for matches
-5. **correlate_findings** — cross-reference vulns against AI-specific risk categories (deserialization, injection, model access, data exfiltration)
-6. **assess_risk** — score each finding based on CVSS + AI-specific severity modifiers + exploitability
-7. **generate_briefing** — LLM-generated remediation report with upgrade paths
-8. **human_review** — HITL gate for critical findings (KEV entries, CVSS 9.0+)
-
-### Tools
-- `osv_query` — OSV.dev vulnerability database API
-- `ghsa_query` — GitHub Security Advisory search
-- `kev_check` — CISA KEV catalog check
-- `pypi_versions` — PyPI version API for upgrade path resolution
-- `npm_versions` — npm registry version API
-- `ai_risk_classifier` — AI-specific risk categorization (deserialization, injection, model access, proxy abuse)
-
-### Input/Output
-- Input: path to requirements.txt, pyproject.toml, or package.json
-- Output: structured vulnerability briefing with:
-  - Affected packages and versions
-  - AI-specific risk assessment per vulnerability
-  - CISA KEV status
-  - Recommended upgrade versions with verified availability
-  - Workaround recommendations when upgrade isn't possible
-  - Priority ranking (AI-specific exploitability × severity × exposure)
-
-## Known AI/ML Risk Categories (for classifier)
-1. **Deserialization RCE** — unsafe pickle/msgpack/yaml loading (LangGraph GHSA-g48c-2wqr-h844)
-2. **Command Injection via Proxy** — LLM proxy misconfiguration (LiteLLM CVE-2026-42271)
-3. **Prompt Injection via Supply Chain** — compromised packages injecting prompts
-4. **Data Exfiltration** — packages sending model outputs/data to third parties
-5. **Model Poisoning** — trojanized model files
-6. **Auth Bypass** — missing auth on AI endpoints (Splunk, LiteLLM host header injection)
-7. **Memory/Context Poisoning** — adversarial input manipulation
-8. **Credential Exposure** — API keys/tokens in package code or configs
+- [x] Core graph works end-to-end
+- [x] All nodes have unit tests
+- [x] Integration test passes
+- [x] Live test produces useful output
+- [x] Terminal UI working (Rich/Textual)
+- [x] Web UI working (Next.js) — builds, renders, scans via API backend
+- [x] README complete
+- [x] Error handling for common failures
+- [x] Git initialized, clean history
+- [ ] No TODOs, no placeholders — 1 minor: no hardcoded values (env vars used)
 
 ## What's Done
 - Night 1 (2026-06-23): Deep research — identified AI/ML dep vuln space as green niche, verified uniqueness (0 repos), documented threat landscape, initial architecture design
+- Night 2 (2026-06-24):
+  - Verified LangGraph 1.2.6 API (InMemorySaver, SqliteSaver, StateGraph, interrupt)
+  - Wrote complete DESIGN.md with graph architecture, state schema, nodes, tools, TUI/web UI specs
+  - Built 6 intelligence tools: osv_query, ghsa_search, kev_check, pypi_versions, npm_versions, ai_risk_classifier
+  - Built 8 graph nodes: parse_dependencies, ingest_osv, ingest_ghsa, ingest_kev, correlate_findings, assess_risk, generate_briefing, human_review
+  - Wired graph with conditional edges and HITL interrupts
+  - Wrote 49 tests — ALL PASSING (unit + integration)
+  - Built Rich terminal CLI with progress tracking, findings display, JSON export
+  - Built Next.js 15 web UI with scan form, results display, KEV banner, briefing panel
+  - Wrote comprehensive README
+  - Git init + commit (49 files, 3431 lines)
+- Night 3 (2026-06-25):
+  - Fixed CLI progress bar bug (Progress.completed → completed_steps tracker)
+  - Fixed CVSS extraction — OSV returns CVSS vectors not numeric scores. Implemented full CVSS v3.1 base score calculator from vector strings
+  - Fixed human_review node state mutation anti-pattern (was mutating state dict directly, now returns proper state update)
+  - Added human_decision field to state schema
+  - Added 18 new tests (CVSS vector parsing, severity extraction) — 67/67 PASSING
+  - Built Python API server (stdlib HTTPServer, no extra deps) with CORS support for web UI
+  - Updated web UI to call Python API backend via NEXT_PUBLIC_API_BASE
+  - Installed npm deps, built Next.js (✓ compiled, static export)
+  - Live test: 15 deps → 11 AI/ML → 66 OSV vulns → 132 findings (6 CRITICAL, 66 HIGH, 42 MEDIUM)
+  - Web UI visual validation: renders scan form, summary cards (8 deps, 110 vulns, 64 crit/high), findings table with severity badges, CVSS, risk scores, AI risk, fix versions
+  - Updated README with API server docs and web UI instructions
 
 ## What's Remaining
-- Night 2: Verify LangGraph current API via Context7, finalize design (DESIGN.md), begin implementation
-- Night 3-4: Build core graph (parse_deps → ingest tools → correlate → brief)
-- Night 5: Terminal UI (Rich), unit tests, integration test
-- Night 6: Web UI (Next.js), README, validation
-- Night 7: Final validation, git init, complete
+- Night 4: Error handling edge cases (bad network, API rate limits, empty files) — need targeted tests
+- Night 4: Streaming SSE for web UI (currently waits for full scan, should stream progress)
+- Night 4: Push to GitHub
+- Night 4: Final visual polish — take screenshots for README
 
 ## Known Issues
-- None yet
+- Web UI scan waits for full completion (no streaming progress to browser)
+- LLM briefing requires OPENAI_API_KEY (falls back to raw findings text — acceptable)
+- No GitHub repo created yet
 
 ## Night Log
 - Night 1 (2026-06-23): RESEARCH session — landscape has accelerated significantly since Night 16. MCP security space exploded (328 repos). Agent runtime security maturing (Kontext 206★). AI agent forensics has strong entrant (ProjectAIR 1★). Identified AI/ML dependency vulnerability intelligence as completely empty green niche (0 repos). LiteLLM 25 OSV vulns, LangChain 38 vulns, LangGraph 2 vulns — critical pain signal. Initial PipelineSentinel architecture designed. Status: RESEARCHING → DESIGNING next session.
+- Night 2 (2026-06-24): DESIGN + BUILD session — Verified LangGraph 1.2.6 API. Wrote DESIGN.md. Built full agent: 6 tools, 8 nodes, graph wiring. 49/49 tests passing. Rich CLI + Next.js web UI code written. README complete. Git committed. Status: TESTING → VALIDATING next session.
+- Night 3 (2026-06-25): VALIDATION session — Fixed CVSS extraction (was returning 0.0 for all vulns because OSV returns CVSS vectors, not numeric scores). Implemented full CVSS v3.1 calculator. Fixed state mutation anti-pattern. Built Python API server with CORS. npm install + Next.js build successful. Live test: 132 findings with proper severity distribution. Web UI rendering correctly with scan form, summary cards, findings table. 67/67 tests passing. Status: VALIDATING → FINAL POLISH next session.

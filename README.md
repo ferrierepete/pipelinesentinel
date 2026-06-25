@@ -65,11 +65,34 @@ pipelinesentinel package.json
 
 ### Web UI
 
+**Two servers are needed: the Python API backend and the Next.js frontend.**
+
 ```bash
+# Terminal 1: Start the Python API backend
+PYTHONPATH=. python web/api/server.py --port 8742
+
+# Terminal 2: Start the Next.js frontend
 cd web
 npm install
 npm run dev
 # Open http://localhost:3000
+```
+
+The frontend calls the Python API at `http://127.0.0.1:8742`. Set `NEXT_PUBLIC_API_BASE` to change this.
+
+### Python API
+
+```bash
+# Start the standalone API server
+PYTHONPATH=. python web/api/server.py --port 8742
+
+# Test health endpoint
+curl http://127.0.0.1:8742/api/health
+
+# Run a scan
+curl -X POST http://127.0.0.1:8742/api/scan \
+  -H 'Content-Type: application/json' \
+  -d '{"file_content": "langchain>=0.3.0\nlanggraph>=0.2.0", "file_name": "requirements.txt"}'
 ```
 
 ### Python API

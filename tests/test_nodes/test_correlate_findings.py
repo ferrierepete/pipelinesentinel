@@ -2,7 +2,11 @@
 
 import pytest
 
-from src.nodes.correlate_findings import correlate_findings, _severity_label
+from src.nodes.correlate_findings import (
+    correlate_findings,
+    _extract_cvss_from_severity,
+    _severity_label,
+)
 
 
 class TestSeverityLabel:
@@ -24,6 +28,36 @@ class TestSeverityLabel:
 
     def test_info(self):
         assert _severity_label(0.0) == "INFO"
+
+
+class TestCVSSExtraction:
+    """Test CVSS score extraction from various severity formats."""
+
+    def test_new_format_with_cvss_score(self):
+        severity = {"cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", "cvss_score": 9.8, "cvss_type": "CVSS_V3", "severity": []}
+        assert _extract_cvss_from_severity(severity) == 9.8
+
+    def test_old_format_cvss_vector(self):
+        severity = {"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H": "CVSS_V3"}
+        score = _extract_cvss_from_severity(severity)
+        assert score >= 9.0  # Should be ~9.8 for full RCE
+
+    def test_old_format_numeric(self):
+        severity = {"9.8": "CVSS_V3", "7.5": "CVSS_V2"}
+        assert _extract_cvss_from_severity(severity) == 9.8
+
+    def test_empty_severity(self):
+        assert _extract_cvss_from_severity({}) == 0.0
+
+    def test_cvss_vector_medium(self):
+        severity = {"CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N": "CVSS_V3"}
+        score = _extract_cvss_from_severity(severity)
+        assert 4.0 <= score <= 7.0  # Medium range
+
+    def test_cvss_vector_low(self):
+        severity = {"CVSS:3.1/AV:A/AC:H/PR:H/UI:R/S:U/C:N/I:L/A:N": "CVSS_V3"}
+        score = _extract_cvss_from_severity(severity)
+        assert 0.0 < score < 4.0  # Low range
 
 
 class TestCorrelateFindings:

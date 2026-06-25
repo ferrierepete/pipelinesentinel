@@ -5,6 +5,8 @@ import ScanForm from '@/components/ScanForm'
 import ScanResults from '@/components/ScanResults'
 import type { ScanResult } from '@/components/ScanResults'
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8742'
+
 export default function Home() {
   const [result, setResult] = useState<ScanResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -15,8 +17,11 @@ export default function Home() {
     setResult(null)
     setLogs([])
 
+    // Add scan log messages
+    setLogs(['Parsing dependencies...', 'Querying OSV database...', 'Querying GitHub Advisories...', 'Checking CISA KEV...', 'Correlating findings...', 'Assessing risk scores...', 'Generating briefing...'])
+
     try {
-      const response = await fetch('/api/scan', {
+      const response = await fetch(`${API_BASE}/api/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_content: fileContent, file_name: fileName }),
