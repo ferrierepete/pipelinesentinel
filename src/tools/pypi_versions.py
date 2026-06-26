@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
+import logging
+
 import httpx
+
+logger = logging.getLogger(__name__)
 
 PYPI_URL = "https://pypi.org/pypi/{package}/json"
 
 
 async def pypi_versions(package: str) -> dict:
-    """Get all available versions and metadata for a PyPI package.
-
-    Args:
-        package: Package name
-
-    Returns:
-        Dict with 'latest', 'versions', 'release_urls', 'requires_python'.
-    """
+    """Get all available versions and metadata for a PyPI package."""
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(PYPI_URL.format(package=package.lower()))
@@ -42,8 +39,17 @@ async def pypi_versions(package: str) -> dict:
                 for v, rels in releases.items()
             },
         }
-    except Exception:
-        return {"package": package, "latest": "", "versions": [], "error": "package not found"}
+    except httpx.TimeoutException:
+        logger.warning(f"PyPI lookup timed out for {package}")
+        return {"package": package, "latest": "", "versions": [], "error": "timeout"}
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            return {"package": package, "latest": "", "versions": [], "error": "not found"}
+        logger.warning(f"PyPI lookup failed for {package}: {e}")
+        return {"package": package, "latest": "", "versions": [], "error": "lookup failed"}
+    except (httpx.ConnectError, Exception):
+        logger.warning(f"PyPI error for {package}")
+        return {"package": package, "latest": "", "versions": [], "error": "lookup failed"}
 
 
 def _sort_version(version: str) -> tuple:
@@ -60,20 +66,10 @@ def _sort_version(version: str) -> tuple:
 def get_safe_upgrade_version(
     current_version: str, available_versions: list[str], vuln_fixed_in: str | None = None
 ) -> str | None:
-    """Determine the safest upgrade version.
-
-    Args:
-        current_version: Currently installed version
-        available_versions: All available versions (sorted newest first)
-        vuln_fixed_in: Version where the vulnerability was fixed (if known)
-
-    Returns:
-        Recommended upgrade version, or None if no safe upgrade available.
-    """
+    """Determine the safest upgrade version."""
     if vuln_fixed_in and vuln_fixed_in in available_versions:
         return vuln_fixed_in
 
-    # Find next minor version after current
     current_parts = _sort_version(current_version)
     for v in available_versions:
         if _sort_version(v) > current_parts:

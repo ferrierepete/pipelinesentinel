@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 from functools import lru_cache
+
+logger = logging.getLogger(__name__)
 
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 
@@ -11,9 +15,19 @@ KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulner
 @lru_cache(maxsize=1)
 def _load_kev_catalog() -> list[dict]:
     """Load and cache the full CISA KEV catalog."""
-    resp = httpx.get(KEV_URL, timeout=30.0)
-    resp.raise_for_status()
-    return resp.json().get("vulnerabilities", [])
+    try:
+        resp = httpx.get(KEV_URL, timeout=30.0)
+        resp.raise_for_status()
+        return resp.json().get("vulnerabilities", [])
+    except httpx.TimeoutException:
+        logger.error("CISA KEV catalog fetch timed out")
+        return []
+    except httpx.HTTPStatusError as e:
+        logger.error(f"CISA KEV catalog fetch failed: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"CISA KEV catalog parse error: {e}")
+        return []
 
 
 def kev_check(cve_ids: list[str]) -> list[dict]:

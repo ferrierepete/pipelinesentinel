@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from src.tools.osv_query import osv_query as osv_tool
 from src.tools.pypi_versions import pypi_versions
+
+logger = logging.getLogger(__name__)
 
 
 async def ingest_osv(state: dict) -> dict:
@@ -19,6 +22,7 @@ async def ingest_osv(state: dict) -> dict:
         return {"osv_vulns": []}
 
     all_vulns = []
+    errors = []
 
     tasks = []
     for dep in ai_ml_deps:
@@ -26,14 +30,23 @@ async def ingest_osv(state: dict) -> dict:
         version = dep.get("version", "")
         if not version:
             continue
-        tasks.append(_query_single(dep["name"], version, ecosystem))
+        tasks.append((dep["name"], version, ecosystem))
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(
+        *[_query_single(name, ver, eco) for name, ver, eco in tasks],
+        return_exceptions=True,
+    )
 
-    for result in results:
+    for i, result in enumerate(results):
+        dep_name = tasks[i][0] if i < len(tasks) else "unknown"
         if isinstance(result, Exception):
-            continue
-        all_vulns.extend(result)
+            errors.append(f"OSV query error for {dep_name}: {result}")
+            logger.warning(errors[-1])
+        else:
+            all_vulns.extend(result)
+
+    if errors:
+        logger.info(f"OSV ingest completed with {len(errors)} errors, {len(all_vulns)} vulns found")
 
     return {"osv_vulns": all_vulns}
 

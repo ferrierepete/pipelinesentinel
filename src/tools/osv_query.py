@@ -2,29 +2,29 @@
 
 from __future__ import annotations
 
+import logging
+
 import httpx
+
+from src.utils.retry import retry_async
+
+logger = logging.getLogger(__name__)
 
 OSV_API = "https://api.osv.dev/v1/query"
 
 
-async def osv_query(package: str, version: str, ecosystem: str = "PyPI") -> list[dict]:
-    """Query OSV.dev for vulnerabilities affecting a specific package version.
-
-    Args:
-        package: Package name (e.g., "langgraph")
-        version: Package version (e.g., "0.2.0")
-        ecosystem: Package ecosystem ("PyPI", "npm", etc.)
-
-    Returns:
-        List of vulnerability dicts with package, version, vuln details.
-    """
+async def _do_osv_query(package: str, version: str, ecosystem: str, timeout: float = 30.0) -> list[dict]:
+    """Inner query function with explicit timeout."""
     payload = {
         "version": version,
         "package": {"name": package.lower(), "ecosystem": ecosystem},
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(OSV_API, json=payload)
+        if resp.status_code == 429:
+            logger.warning(f"OSV rate limited for {package}")
+            resp.raise_for_status()
         resp.raise_for_status()
         data = resp.json()
 
@@ -56,6 +56,31 @@ async def osv_query(package: str, version: str, ecosystem: str = "PyPI") -> list
         results.append(result)
 
     return results
+
+
+async def osv_query(package: str, version: str, ecosystem: str = "PyPI") -> list[dict]:
+    """Query OSV.dev for vulnerabilities affecting a specific package version.
+
+    Args:
+        package: Package name (e.g., "langgraph")
+        version: Package version (e.g., "0.2.0")
+        ecosystem: Package ecosystem ("PyPI", "npm", etc.)
+
+    Returns:
+        List of vulnerability dicts with package, version, vuln details.
+    """
+    try:
+        return await retry_async(
+            _do_osv_query, package, version, ecosystem,
+            max_retries=2, base_delay=0.5,
+            retryable_exceptions=(httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException),
+        )
+    except httpx.HTTPStatusError as e:
+        logger.error(f"OSV query failed for {package}@{version}: {e}")
+        return []
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        logger.error(f"OSV network error for {package}@{version}: {e}")
+        return []
 
 
 def _extract_severity(vuln: dict) -> dict:
