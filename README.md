@@ -89,13 +89,18 @@ PYTHONPATH=. python web/api/server.py --port 8742
 # Test health endpoint
 curl http://127.0.0.1:8742/api/health
 
-# Run a scan
+# Run a scan (synchronous JSON response)
 curl -X POST http://127.0.0.1:8742/api/scan \
+  -H 'Content-Type: application/json' \
+  -d '{"file_content": "langchain>=0.3.0\nlanggraph>=0.2.0", "file_name": "requirements.txt"}'
+
+# Run a scan with SSE streaming
+curl -X POST http://127.0.0.1:8742/api/scan/stream \
   -H 'Content-Type: application/json' \
   -d '{"file_content": "langchain>=0.3.0\nlanggraph>=0.2.0", "file_name": "requirements.txt"}'
 ```
 
-### Python API
+### Python Library
 
 ```python
 from src.graph import build_graph
